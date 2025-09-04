@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>抖音直播间信息查询</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0;padding:1rem;background:#f6f6f6}
+ h1{font-size:1.4rem;text-align:center}
+ .box{background:#fff;border-radius:8px;padding:1rem;margin-bottom:1rem}
+ input[type=text]{width:100%;padding:.6rem;font-size:1rem;box-sizing:border-box}
+ button{width:100%;padding:.6rem;font-size:1rem;background:#fe2c55;color:#fff;border:none;border-radius:4px;margin-top:.5rem}
+ pre{white-space:pre-wrap;word-break:break-all;font-size:.9rem;color:#333}
+</style>
+</head>
+<body>
+
+<h1>抖音直播间信息查询</h1>
+
+<div class="box">
+ <input id="rid" type="text" placeholder="请输入 web-rid（纯数字）" maxlength="30">
+ <button onclick="query()">查询</button>
+</div>
+
+<div class="box">
+ <pre id="result">等待输入房间号并点击查询…</pre>
+</div>
+
+<script>
+/* ---------- 工具函数 ---------- */
+const sec2hms = s => {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}时${m}分${sec}秒`;
+};
+const ts2str = ts =>
+  new Date(ts * 1000).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'});
+
+async function query() {
+  const rid = document.getElementById('rid').value.trim();
+  if (!rid) return alert('请输入房间号');
+  const resBox = document.getElementById('result');
+  resBox.textContent = '加载中…';
+
+  try {
+    const url = `https://live.douyin.com/webcast/room/web/enter/?aid=6383&web_rid=${rid}`;
+    const r = await fetch(url, {
+      headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+    if (!r.ok) throw new Error('网络错误 ' + r.status);
+    const data = await r.json();
+    const room = data?.data?.data?.[0];
+    if (!room) throw new Error('未找到房间数据');
+
+    if (room.status !== 2) {
+      resBox.textContent = '⚠️ 当前未开播';
+      return;
+    }
+
+    const now = Math.floor(Date.now()/1000);
+    const duration = now - room.create_time;
+
+    const info = {
+      房间号: room.id_str || rid,
+      主播头像: room.owner?.avatar_thumb?.url_list?.[0] || '',
+      主播昵称: room.owner?.nickname || '',
+      开播标题: room.title || '',
+      关注: room.owner?.follow_info?.follower_count || 0,
+      粉丝: room.owner?.follow_info?.follower_count_str || '',
+      场观: room.stats?.total_user_str || '',
+      在线: room.stats?.user_count_str || '',
+      开播时间: ts2str(room.create_time),
+      直播时长: sec2hms(duration),
+      设备端口: `${room.stream_provider || ''} (${room.live_type_desc || '未知'})`,
+      内容分类: room.partition_road_map?.partition?.title || '',
+      直播方式: room.commerce_info?.live_business_type_str || '',
+      视频编码: '软件编码',
+      编码格式: room.stream_url?.default_quality?.sdk_key || '',
+      推流集群: room.stream_url?.rtmp_push_url?.split('?')[0] || ''
+    };
+
+    resBox.textContent = Object.entries(info)
+      .map(([k, v]) => `${k}：${v}`)
+      .join('\n');
+
+  } catch (e) {
+    resBox.textContent = '错误：' + e.message;
+  }
+}
+</script>
+</body>
+</html>
